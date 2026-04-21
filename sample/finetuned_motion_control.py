@@ -33,7 +33,7 @@ def main():
     dist_util.setup_dist(args.device)
     if out_path == '':
         out_path = os.path.join(os.path.dirname(args.model_path),
-                                'edit_{}_{}_{}_seed{}'.format(name, niter, args.inpainting_mask, args.seed))
+                                'edit_{}_{}_{}_seed{}_g{}'.format(name, niter, args.inpainting_mask, args.seed, args.guidance_param))
         if args.text_condition != '':
             out_path += '_' + args.text_condition.replace(' ', '_').replace('.', '')
 

@@ -30,7 +30,27 @@ If you find this code useful in your research, please cite:
 | **ComMDM (two-person)** | ✅ | ✅ | ✅ |
 | **Fine-tuned motion control** | ✅ | ✅ | ✅ |
 
+## PriorMDM is now ~40X faster 🤩🤩🤩 (~0.4 sec/sample)
+
+### How come?!?
+
+(1) We trained and released [50 diffusion steps models](#4-download-the-pretrained-models) (instead of 1000 steps) which run 20X faster with comparable results.
+
+(2) Calling CLIP just once and caching the result runs 2X faster for all models. Just pull and enjoy.
+
+All ported from [MDM](https://github.com/GuyTevet/motion-diffusion-model).
+
 ## News
+
+📢 **20/Apr/2026** - Released 50 diffusion steps models (instead of 1000 steps) which run 20X faster 🤩🤩🤩 with comparable results. New pretrained models are available for [download](#4-download-the-pretrained-models).
+
+📢 **20/Apr/2026** - Inference is now 2X faster 🤩🤩🤩 by calling CLIP just once and caching the result. Backward compatible with all existing models.
+
+📢 **20/Apr/2026** - Added [WandB](https://wandb.ai/) support with `--train_platform_type WandBPlatform`.
+
+📢 **20/Apr/2026** - Fixed bug in evaluation code - caption length calculation and multi-modality metric normalization. Please use the fixed results when citing PriorMDM.
+
+📢 **20/Apr/2026** - Various fixes: visualization double-translation bug, loss logging accuracy, evaluator download links (please re-run `bash prepare/download_t2m_evaluators.sh`). All ported from [MDM](https://github.com/GuyTevet/motion-diffusion-model).
 
 📢 **29/Apr/2023** - Evaluation release of the long-motions scripts, including both datasets (BABEL & HumanML3D) - please check the updated readme.
 
@@ -147,6 +167,8 @@ Download the model(s) you wish to use, then unzip and place it in `./save/`.
   <summary><b>DoubleTake (long motions)</b></summary>
 
 * [my_humanml-encoder-512](https://drive.google.com/file/d/1RCqyKfj7TLSp6VzwrKa84ldEaXmVma1a/view?usp=share_link) (This is a reproduction of MDM best model without any changes)
+* [humanml-encoder-512-50steps](https://drive.google.com/file/d/1RpAon66KsWRDLhoh3uREnDeycoq6JnX1/view?usp=drive_link) 
+(~20X faster with comparable performance)
 * [Babel_TrasnEmb_GeoLoss](https://drive.google.com/file/d/1sHQncaaYhyheeItnAiDOsxw_mpcbpLYr/view?usp=share_link)
 
 </details>
@@ -164,10 +186,16 @@ Download the model(s) you wish to use, then unzip and place it in `./save/`.
 
 * [root_horizontal_control](https://drive.google.com/file/d/1xLNza6S8Iz2MqSlMJnL38FPqTQhGnqfY/view?usp=share_link) 
 (Finetuned the base model for 80,000 steps on (horizontal part of) root control objective)
+* [root_horizontal_control_50steps](https://drive.google.com/file/d/1me_j2XO4AIf9x2Kk7bynjAbC9Reu8gJ_/view?usp=drive_link) 
+(x20 faster with similar performance)
 * [left_wrist_control](https://drive.google.com/file/d/17h98FQhu6dFj70YCopFHT4sL6jZOf42U/view?usp=share_link)
 (Finetuned the base model for 80,000 steps on left wrist control objective)
+* [left_wrist_control_50steps](https://drive.google.com/file/d/1WbsbKU-kmakUc9sNajE03CuP9GYkkQow/view?usp=drive_link) 
+(x20 faster with similar performance)
 * [right_foot_control](https://drive.google.com/file/d/1QqHAYZ3hbDtsHwJ2Gy4nsfgMwaHvnSOq/view?usp=share_link)
 (Finetuned the base model for 80,000 steps on right foor control objective)
+* [right_foot_control_50steps](https://drive.google.com/file/d/1-7gGapEeakM9Y5QklOOIXTZuA2n6YUdN/view?usp=drive_link) 
+(x20 faster with similar performance)
 
 </details>
 
@@ -341,6 +369,13 @@ python -m train.train_mdm --save_dir save/my_humanML_bestmodel --dataset humanml
 python -m train.train_mdm --save_dir ./save/my_Babel_TrasnEmb_GeoLoss --dataset babel --latent_dim 512 --batch_size 64 --diffusion_steps 1000 --num_steps 10000000 --min_seq_len 45 --max_seq_len 250 --lambda_rcxyz 1.0 --lambda_fc 1.0 --lambda_vel 1.0
 ```
 
+**Train a 50-step model (~20X faster inference)**
+
+To train a base model with 50 diffusion steps instead of 1000, add `--diffusion_steps 50`:
+```shell
+python -m train.train_mdm --save_dir save/my_humanML_bestmodel_50steps --dataset humanml --diffusion_steps 50
+```
+
 </details>
 
 
@@ -379,10 +414,17 @@ Finetune a base model for left wrist control on HumanML3D dataset. We advise set
 python -m train.train_mdm_motion_control --save_dir save/left_wrist_finetuned --dataset humanml --inpainting_mask left_wrist --resume_checkpoint save/humanml_trans_enc_512/model000200000.pt --save_interval 10_000
 ```
 
+**Train a 50-step model (~20X faster inference)**
+
+To train a model with 50 diffusion steps instead of 1000, add `--diffusion_steps 50`. For example:
+```shell
+python -m train.train_mdm_motion_control --save_dir save/root_horizontal_50steps --dataset humanml --inpainting_mask root_horizontal --diffusion_steps 50
+```
+
 </details>
 
 * Use `--device` to define GPU id.
-* Add `--train_platform_type {ClearmlPlatform, TensorboardPlatform}` to track results with either [ClearML](https://clear.ml/) or [Tensorboard](https://www.tensorflow.org/tensorboard).
+* Add `--train_platform_type {ClearmlPlatform, TensorboardPlatform, WandBPlatform}` to track results with [ClearML](https://clear.ml/), [Tensorboard](https://www.tensorflow.org/tensorboard), or [WandB](https://wandb.ai/).
 * Add `--eval_during_training` to run a short evaluation for each saved checkpoint. 
   This will slow down training but will give you better monitoring.
 

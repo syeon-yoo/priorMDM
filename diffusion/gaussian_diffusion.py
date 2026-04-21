@@ -663,6 +663,17 @@ class GaussianDiffusion:
         if dump_steps is not None:
             dump = []
 
+        # Cache CLIP text embedding to avoid re-encoding at every diffusion step
+        if model_kwargs is not None and 'y' in model_kwargs and 'text' in model_kwargs['y']:
+            encode_fn = getattr(model, 'encode_text', None)
+            if encode_fn is not None:
+                _n_texts = model_kwargs['y']['text'].__len__()
+                # Invalidate stale cache if batch size changed
+                if 'text_embed' in model_kwargs['y'] and model_kwargs['y']['text_embed'].shape[0] != _n_texts:
+                    del model_kwargs['y']['text_embed']
+                if 'text_embed' not in model_kwargs['y']:
+                    model_kwargs['y']['text_embed'] = encode_fn(model_kwargs['y']['text'])
+
         for i, sample in enumerate(self.p_sample_loop_progressive(
             model,
             shape,
@@ -1048,6 +1059,16 @@ class GaussianDiffusion:
             raise NotImplementedError()
         if const_noise == True:
             raise NotImplementedError()
+
+        # Cache CLIP text embedding to avoid re-encoding at every diffusion step
+        if model_kwargs is not None and 'y' in model_kwargs and 'text' in model_kwargs['y']:
+            encode_fn = getattr(model, 'encode_text', None)
+            if encode_fn is not None:
+                n_texts = len(model_kwargs['y']['text'])
+                if 'text_embed' in model_kwargs['y'] and model_kwargs['y']['text_embed'].shape[0] != n_texts:
+                    del model_kwargs['y']['text_embed']
+                if 'text_embed' not in model_kwargs['y']:
+                    model_kwargs['y']['text_embed'] = encode_fn(model_kwargs['y']['text'])
 
         final = None
         for sample in self.ddim_sample_loop_progressive(

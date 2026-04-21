@@ -129,3 +129,19 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Downloaded data, models, and dependencies
+dataset/*
+!dataset/README.md
+!dataset/humanml_opt.txt
+!dataset/pw3d_opt.txt
+!dataset/pw3d_prefix_opt.txt
+save/
+body_models/
+glove/
+t2m/
+kit/
+checkpoints/
+slurm/
+wandb/
+tests/

@@ -11,6 +11,18 @@ from data_loaders.humanml_utils import get_inpainting_mask
 from utils.sampling_utils import double_take_arb_len, unfold_sample_arb_len
 from utils import dist_util
 
+
+def _cap_len(tokens):
+    """Compute caption length up to and including 'eos/OTHER' token.
+
+    Using len(tokens) over-counts because it includes padding tokens.
+    Fix from: https://github.com/GuyTevet/motion-diffusion-model/issues/182
+    """
+    try:
+        return tokens.index('eos/OTHER') + 1
+    except ValueError:
+        return len(tokens)
+
 def build_models(opt):
     if opt.text_enc_mod == 'bigru':
         text_encoder = TextEncoderBiGRU(word_size=opt.dim_word,
@@ -163,7 +175,7 @@ class CompMDMGeneratedDataset(Dataset):
 
         real_num_batches = len(dataloader)
         if num_samples_limit is not None:
-            real_num_batches = num_samples_limit // dataloader.batch_size + 1
+            real_num_batches = min(num_samples_limit // dataloader.batch_size + 1, real_num_batches)
         print('real_num_batches', real_num_batches)
 
         generated_motion = []
@@ -216,21 +228,27 @@ class CompMDMGeneratedDataset(Dataset):
                                     'length': model_kwargs['y']['lengths'][bs_i].cpu().numpy(),
                                     'caption': model_kwargs['y']['text'][bs_i],
                                     'tokens': tokens[bs_i],
-                                    'cap_len': len(tokens[bs_i]),
+                                    'cap_len': _cap_len(tokens[bs_i]),
                                     'is_transition': model_kwargs['y']['is_transition'][bs_i]
                                     } for bs_i in range(dataloader.batch_size)]
                         generated_motion += sub_dicts
 
                     if is_mm:
-                        mm_motions += [{'motion': sample[bs_i].squeeze().permute(1, 0).cpu().numpy(),
-                                        'length': model_kwargs['y']['lengths'][bs_i].cpu().numpy(),
-                                        } for bs_i in range(dataloader.batch_size)]
+                        for bs_i in range(dataloader.batch_size):
+                            mm_motion = sample[bs_i].squeeze().permute(1, 0).cpu().numpy()
+                            # Renorm MM motions for correct multimodality metric computation
+                            if self.dataset.load_mode == 'eval' and self.dataset.dataset_name != 'babel':
+                                mm_motion = self.dataset.t2m_dataset.inv_transform(mm_motion)
+                                mm_motion = (mm_motion - self.dataset.mean_for_eval) / self.dataset.std_for_eval
+                            mm_motions.append({'motion': mm_motion,
+                                               'length': model_kwargs['y']['lengths'][bs_i].cpu().numpy(),
+                                               })
 
                 if is_mm:
                     mm_generated_motions += [{
                                     'caption': model_kwargs['y']['text'][bs_i],
                                     'tokens': tokens[bs_i],
-                                    'cap_len': len(tokens[bs_i]),
+                                    'cap_len': _cap_len(tokens[bs_i]),
                                     'mm_motions': mm_motions[bs_i::dataloader.batch_size],  # collect all 10 repeats from the (32*10) generated motions
                                     } for bs_i in range(dataloader.batch_size)]
 
@@ -282,7 +300,7 @@ class CompMDMInpaintingGeneratedDataset(CompMDMGeneratedDataset):
 
         real_num_batches = len(dataloader)
         if num_samples_limit is not None:
-            real_num_batches = num_samples_limit // dataloader.batch_size + 1
+            real_num_batches = min(num_samples_limit // dataloader.batch_size + 1, real_num_batches)
         print('real_num_batches', real_num_batches)
 
         generated_motion = []
@@ -338,21 +356,27 @@ class CompMDMInpaintingGeneratedDataset(CompMDMGeneratedDataset):
                                     'length': model_kwargs['y']['lengths'][bs_i].cpu().numpy(),
                                     'caption': model_kwargs['y']['text'][bs_i],
                                     'tokens': tokens[bs_i],
-                                    'cap_len': len(tokens[bs_i]),
+                                    'cap_len': _cap_len(tokens[bs_i]),
                                     'is_transition': model_kwargs['y']['is_transition'][bs_i]
                                     } for bs_i in range(dataloader.batch_size)]
                         generated_motion += sub_dicts
 
                     if is_mm:
-                        mm_motions += [{'motion': sample[bs_i].squeeze().permute(1, 0).cpu().numpy(),
-                                        'length': model_kwargs['y']['lengths'][bs_i].cpu().numpy(),
-                                        } for bs_i in range(dataloader.batch_size)]
+                        for bs_i in range(dataloader.batch_size):
+                            mm_motion = sample[bs_i].squeeze().permute(1, 0).cpu().numpy()
+                            # Renorm MM motions for correct multimodality metric computation
+                            if self.dataset.load_mode == 'eval' and self.dataset.dataset_name != 'babel':
+                                mm_motion = self.dataset.t2m_dataset.inv_transform(mm_motion)
+                                mm_motion = (mm_motion - self.dataset.mean_for_eval) / self.dataset.std_for_eval
+                            mm_motions.append({'motion': mm_motion,
+                                               'length': model_kwargs['y']['lengths'][bs_i].cpu().numpy(),
+                                               })
 
                 if is_mm:
                     mm_generated_motions += [{
                                     'caption': model_kwargs['y']['text'][bs_i],
                                     'tokens': tokens[bs_i],
-                                    'cap_len': len(tokens[bs_i]),
+                                    'cap_len': _cap_len(tokens[bs_i]),
                                     'mm_motions': mm_motions[bs_i::dataloader.batch_size],  # collect all 10 repeats from the (32*10) generated motions
                                     } for bs_i in range(dataloader.batch_size)]
 
@@ -380,7 +404,7 @@ class CompMDMUnfoldingGeneratedDataset2(Dataset):
 
         real_num_batches = len(dataloader)
         if num_samples_limit is not None:
-            real_num_batches = num_samples_limit // dataloader.batch_size + 1
+            real_num_batches = min(num_samples_limit // dataloader.batch_size + 1, real_num_batches)
         print('real_num_batches', real_num_batches)
 
         generated_motion = []
@@ -457,7 +481,7 @@ class CompMDMUnfoldingGeneratedDataset2(Dataset):
                                     'length': all_lengths[bs_i],
                                     'caption': all_texts[bs_i],
                                     'tokens': all_tokens[bs_i],
-                                    'cap_len': [len(e) for e in all_tokens[bs_i]],
+                                    'cap_len': [_cap_len(e) for e in all_tokens[bs_i]],
                                     } for bs_i in range(dataloader.batch_size)]
                         generated_motion += sub_dicts
 
@@ -470,7 +494,7 @@ class CompMDMUnfoldingGeneratedDataset2(Dataset):
                     mm_generated_motions += [{
                                     'caption': all_texts[bs_i],
                                     'tokens': all_tokens[bs_i],
-                                    'cap_len': [len(e) for e in all_tokens[bs_i]],
+                                    'cap_len': [_cap_len(e) for e in all_tokens[bs_i]],
                                     'mm_motions': mm_motions[bs_i::dataloader.batch_size],  # collect all 10 repeats from the (32*10) generated motions
                                     } for bs_i in range(dataloader.batch_size)]
 
@@ -557,7 +581,7 @@ class CompMDMUnfoldingGeneratedDataset(Dataset):
 
         real_num_batches = len(dataloader)
         if num_samples_limit is not None:
-            real_num_batches = num_samples_limit // dataloader.batch_size + 1
+            real_num_batches = min(num_samples_limit // dataloader.batch_size + 1, real_num_batches)
         print('real_num_batches', real_num_batches)
 
         generated_motion = []
@@ -658,7 +682,7 @@ class CompMDMUnfoldingGeneratedDataset(Dataset):
                                         'length': model_kwargs['y']['lengths'][bs_i] - 2*args.handshake_size,
                                         'caption': model_kwargs['y']['text'][bs_i],
                                         'tokens': tokens[bs_i],
-                                        'cap_len': len(tokens[bs_i]),
+                                        'cap_len': _cap_len(tokens[bs_i]),
                                         'is_transition': model_kwargs['y']['is_transition'][bs_i][:args.handshake_size]
                                         } for bs_i in range(1, dataloader.batch_size - 1)] #-1)] uncomment the -1 for transitions
                             sub_dicts += [{
@@ -666,7 +690,7 @@ class CompMDMUnfoldingGeneratedDataset(Dataset):
                                 'length': model_kwargs['y']['lengths'][0] - args.handshake_size,
                                 'caption': model_kwargs['y']['text'][0],
                                 'tokens': tokens[0],
-                                'cap_len': len(tokens[0]),
+                                'cap_len': _cap_len(tokens[0]),
                                 'is_transition': model_kwargs['y']['is_transition'][0][:args.handshake_size]
                             }]
                             sub_dicts += [{
@@ -675,7 +699,7 @@ class CompMDMUnfoldingGeneratedDataset(Dataset):
                                 'length': model_kwargs['y']['lengths'][-1] - args.handshake_size,
                                 'caption': model_kwargs['y']['text'][-1],
                                 'tokens': tokens[-1],
-                                'cap_len': len(tokens[-1]),
+                                'cap_len': _cap_len(tokens[-1]),
                                 'is_transition': model_kwargs['y']['is_transition'][-1][:args.handshake_size]
                             }]
                         elif args.eval_on == "transition":
@@ -685,7 +709,7 @@ class CompMDMUnfoldingGeneratedDataset(Dataset):
                                         'length': args.handshake_size + args.transition_margins,
                                         'caption': model_kwargs['y']['text'][bs_i],
                                         'tokens': tokens[bs_i],
-                                        'cap_len': len(tokens[bs_i]),
+                                        'cap_len': _cap_len(tokens[bs_i]),
                                         'is_transition': model_kwargs['y']['is_transition'][bs_i][:args.handshake_size]
                                         } for bs_i in range(0, dataloader.batch_size - 1)] #uncomment the -1 for transitions
                         else:
@@ -701,7 +725,7 @@ class CompMDMUnfoldingGeneratedDataset(Dataset):
                     mm_generated_motions += [{
                                     'caption': all_texts[bs_i],
                                     'tokens': all_tokens[bs_i],
-                                    'cap_len': [len(e) for e in all_tokens[bs_i]],
+                                    'cap_len': [_cap_len(e) for e in all_tokens[bs_i]],
                                     'mm_motions': mm_motions[bs_i::dataloader.batch_size],  # collect all 10 repeats from the (32*10) generated motions
                                     } for bs_i in range(dataloader.batch_size)]
 

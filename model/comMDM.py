@@ -60,7 +60,10 @@ class ComMDM(MDM):
         force_mask = y.get('uncond', False)
         force_no_com = y.get('no_com', False)  # FIXME - note that this feature not working for com_only - which is ok
         if 'text' in self.cond_mode:
-            enc_text = self.encode_text(y['text'])
+            if 'text_embed' in y.keys():  # use cached CLIP embedding if available
+                enc_text = y['text_embed']
+            else:
+                enc_text = self.encode_text(y['text'])
             emb += self.embed_text(self.mask_cond(enc_text, force_mask=force_mask))
         if 'action' in self.cond_mode:
             action_emb = self.embed_action(y['action'])

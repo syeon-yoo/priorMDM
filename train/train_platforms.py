@@ -50,3 +50,30 @@ class NoPlatform(TrainPlatform):
         pass
 
 
+class WandBPlatform(TrainPlatform):
+    def __init__(self, save_dir):
+        import wandb
+        self.wandb = wandb
+        path, name = os.path.split(save_dir)
+        self.wandb.init(
+            project='priorMDM',
+            name=name,
+            id=name,  # send continued runs to the same record
+            resume='allow',
+            save_code=True,
+        )
+
+    def report_scalar(self, name, value, iteration, group_name=None):
+        import numpy as np
+        if isinstance(value, (np.ndarray, np.generic)):
+            value = float(value)
+        key = f'{group_name}/{name}' if group_name else name
+        self.wandb.log({key: value}, step=iteration)
+
+    def report_args(self, args, name):
+        self.wandb.config.update(args)
+
+    def close(self):
+        self.wandb.finish()
+
+

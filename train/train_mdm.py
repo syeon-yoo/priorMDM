@@ -5,13 +5,17 @@ Train a diffusion model on images.
 
 import os
 import json
+import torch
 from utils.fixseed import fixseed
 from utils.parser_util import train_args
 from utils import dist_util
 from train.training_loop import TrainLoop
 from data_loaders.get_data import get_dataset_loader
 from utils.model_util import create_model_and_diffusion
-from train.train_platforms import ClearmlPlatform, TensorboardPlatform, NoPlatform  # required for the eval operation
+from train.train_platforms import ClearmlPlatform, TensorboardPlatform, WandBPlatform, NoPlatform  # required for the eval operation
+
+if torch.cuda.is_available():
+    torch.backends.cudnn.benchmark = True
 
 def main():
     args = train_args()
