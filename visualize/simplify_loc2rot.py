@@ -12,14 +12,14 @@ import argparse
 
 class joints2smpl:
 
-    def __init__(self, num_frames, device_id, cuda=True):
+    def __init__(self, num_frames, device_id, cuda=True, hugs_smpl_betas_path=None):
         self.device = torch.device("cuda:" + str(device_id) if cuda else "cpu")
         # self.device = torch.device("cpu")
         self.batch_size = num_frames
         self.num_joints = 22  # for HumanML3D
         self.joint_category = "AMASS"
         self.num_smplify_iters = 150
-        self.fix_foot = False
+        self.fix_foot = True
         print(config.SMPL_MODEL_DIR)
         smplmodel = smplx.create(config.SMPL_MODEL_DIR,
                                  model_type="smpl", gender="neutral", ext="pkl",
@@ -33,6 +33,11 @@ class joints2smpl:
         self.init_mean_shape = torch.from_numpy(file['shape'][:]).unsqueeze(0).repeat(self.batch_size, 1).float().to(self.device)
         self.cam_trans_zero = torch.Tensor([0.0, 0.0, 0.0]).unsqueeze(0).to(self.device)
         #
+        
+        if hugs_smpl_betas_path is not None:
+            hugs_smpl_params = np.load(hugs_smpl_betas_path)
+            hugs_smpl_params = {f: hugs_smpl_params[f] for f in hugs_smpl_params.files}
+            self.init_mean_shape = torch.from_numpy(hugs_smpl_params['betas'][0]).unsqueeze(0).repeat(self.batch_size, 1).float().to(self.device)
 
         # # #-------------initialize SMPLify
         self.smplify = SMPLify3D(smplxmodel=smplmodel,
@@ -88,10 +93,14 @@ class joints2smpl:
             confidence_input = torch.ones(self.num_joints)
             # make sure the foot and ankle
             if self.fix_foot == True:
-                confidence_input[7] = 1.5
-                confidence_input[8] = 1.5
-                confidence_input[10] = 1.5
-                confidence_input[11] = 1.5
+                # confidence_input[7] = 1.5
+                # confidence_input[8] = 1.5
+                # confidence_input[10] = 1.5
+                # confidence_input[11] = 1.5
+                confidence_input[7] = 30.0
+                confidence_input[8] = 30.0
+                confidence_input[10] = 30.0
+                confidence_input[11] = 30.0
         else:
             print("Such category not settle down!")
 
@@ -103,15 +112,24 @@ class joints2smpl:
             keypoints_3d,
             conf_3d=confidence_input.to(self.device),
             # seq_ind=idx
+            # seq_ind=1
         )
 
         thetas = new_opt_pose.reshape(self.batch_size, 24, 3)
+        thetas_smpl = thetas.clone().detach()
         thetas = geometry.matrix_to_rotation_6d(geometry.axis_angle_to_matrix(thetas))  # [bs, 24, 6]
         root_loc = torch.tensor(keypoints_3d[:, 0])  # [bs, 3]
         root_loc = torch.cat([root_loc, torch.zeros_like(root_loc)], dim=-1).unsqueeze(1)  # [bs, 1, 6]
+        thetas_smpl = torch.cat([thetas_smpl, root_loc[:,:,:3].clone().detach()], dim=1)    # [bs, 25, 3]
+        thetas_smpl[:,-1,1] -= (new_opt_vertices + new_opt_cam_t)[...,1].min(dim=1).values
+        R_align = torch.tensor([[-1.,0.,0.],
+                                [0.,0.,1.],
+                                [0.,1.,0.]], dtype=thetas_smpl.dtype, device=thetas_smpl.device)
+        thetas_smpl[:,0,:] = geometry.matrix_to_axis_angle(R_align @ geometry.axis_angle_to_matrix(thetas_smpl[:,0,:])) # global_orient
+        thetas_smpl[:,-1,:] = (R_align @ thetas_smpl[:,-1,:].unsqueeze(-1)).squeeze(-1)
         thetas = torch.cat([thetas, root_loc], dim=1).unsqueeze(0).permute(0, 2, 3, 1)  # [1, 25, 6, 196]
 
-        return thetas.clone().detach(), {'pose': new_opt_joints[0, :24].flatten().clone().detach(), 'betas': new_opt_betas.clone().detach(), 'cam': new_opt_cam_t.clone().detach()}
+        return thetas.clone().detach(), thetas_smpl, {'pose': new_opt_joints[0, :24].flatten().clone().detach(), 'betas': new_opt_betas.clone().detach(), 'cam': new_opt_cam_t.clone().detach()}
 
 
 if __name__ == '__main__':

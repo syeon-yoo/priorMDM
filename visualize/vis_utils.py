@@ -6,7 +6,7 @@ import torch
 from visualize.simplify_loc2rot import joints2smpl
 
 class npy2obj:
-    def __init__(self, npy_path, sample_idx, rep_idx, device=0, cuda=True):
+    def __init__(self, npy_path, sample_idx, rep_idx, device=0, cuda=True, hugs_smpl_betas_path=None):
         self.npy_path = npy_path
         self.motions = np.load(self.npy_path, allow_pickle=True)
         if self.npy_path.endswith('.npz'):
@@ -21,12 +21,13 @@ class npy2obj:
         self.rep_idx = rep_idx
         self.absl_idx = self.rep_idx*self.total_num_samples + self.sample_idx
         self.num_frames = self.motions['motion'][self.absl_idx].shape[-1]
-        self.j2s = joints2smpl(num_frames=self.num_frames, device_id=device, cuda=cuda)
+        self.j2s = joints2smpl(num_frames=self.num_frames, device_id=device, cuda=cuda, hugs_smpl_betas_path=hugs_smpl_betas_path)
 
         if self.nfeats == 3:
             print(f'Running SMPLify For sample [{sample_idx}], repetition [{rep_idx}], it may take a few minutes.')
-            motion_tensor, opt_dict = self.j2s.joint2smpl(self.motions['motion'][self.absl_idx].transpose(2, 0, 1))  # [nframes, njoints, 3]
+            motion_tensor, thetas_smpl, opt_dict = self.j2s.joint2smpl(self.motions['motion'][self.absl_idx].transpose(2, 0, 1))  # [nframes, njoints, 3]
             self.motions['motion'] = motion_tensor.cpu().numpy()
+            self.thetas_smpl = thetas_smpl.cpu().numpy()
         elif self.nfeats == 6:
             self.motions['motion'] = self.motions['motion'][[self.absl_idx]]
         self.bs, self.njoints, self.nfeats, self.nframes = self.motions['motion'].shape
@@ -62,5 +63,8 @@ class npy2obj:
             'vertices': self.vertices[0, :, :, :self.real_num_frames],
             'text': self.motions['text'][0],
             'length': self.real_num_frames,
+            'global_orient': self.thetas_smpl[:self.real_num_frames,0,:],
+            'body_pose': self.thetas_smpl[:self.real_num_frames,1:-1,:].reshape(self.real_num_frames,-1),
+            'transl': self.thetas_smpl[:self.real_num_frames, -1],
         }
         np.save(save_path, data_dict)
