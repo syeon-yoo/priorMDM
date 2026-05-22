@@ -136,6 +136,7 @@ dataset/*
 !dataset/humanml_opt.txt
 !dataset/pw3d_opt.txt
 !dataset/pw3d_prefix_opt.txt
+!dataset/HumanML3D
 save/
 body_models/
 glove/
