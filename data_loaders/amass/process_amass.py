@@ -19,6 +19,8 @@ import sys
 
 sys.path.append('.')
 
+_PRIORMDM_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import numpy as np
 import joblib
 import torch
@@ -49,7 +51,7 @@ def get_body_model(model_type, gender, batch_size, device='cpu', ext='pkl'):
     else:
         gender = gender.upper()
         ext = 'npz'
-    body_model_path = f'./body_models/smpl_models/{model_type}/{mtype}_{gender}.{ext}'
+    body_model_path = os.path.join(_PRIORMDM_ROOT, f'body_models/smpl_models/{model_type}/{mtype}_{gender}.{ext}')
 
     body_model = smplx.create(body_model_path, model_type=type,
                               gender=gender, ext=ext,

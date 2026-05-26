@@ -1,4 +1,7 @@
+import os
 from torch.utils.data import DataLoader, Dataset
+
+_PRIORMDM_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from data_loaders.humanml.utils.get_opt import get_opt
 from data_loaders.humanml.motion_loaders.comp_v6_model_dataset import CompMDMGeneratedDataset, CompMDMInpaintingGeneratedDataset, \
     CompMDMUnfoldingGeneratedDataset
@@ -53,7 +56,7 @@ def get_motion_loader(opt_path, batch_size, ground_truth_dataset, mm_num_samples
 
     # Currently the configurations of two datasets are almost the same
     if opt.dataset_name == 't2m' or opt.dataset_name == 'kit':
-        w_vectorizer = WordVectorizer('./glove', 'our_vab')
+        w_vectorizer = WordVectorizer(os.path.join(_PRIORMDM_ROOT, 'glove'), 'our_vab')
     else:
         raise KeyError('Dataset not recognized!!')
     print('Generating %s ...' % opt.name)

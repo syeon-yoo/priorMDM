@@ -1,5 +1,8 @@
 # This code is based on https://github.com/Mathux/ACTOR.git
+import os
 import torch
+
+_PRIORMDM_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 import utils.rotation_conversions as geometry
 from data_loaders.amass.transforms.rots2joints import SMPLH
 
@@ -12,7 +15,7 @@ class Rotation2xyz:
         self.device = device
         self.dataset = dataset
         if dataset == 'babel':
-            self.smpl_model = SMPLH(path='./body_models/smpl_models/smplh',
+            self.smpl_model = SMPLH(path=os.path.join(_PRIORMDM_ROOT, 'body_models/smpl_models/smplh'),
                                                   jointstype='smplnh',
                                                   input_pose_rep='matrix',
                                                   batch_size=batch_size,

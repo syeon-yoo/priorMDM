@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.animation import FuncAnimation, FFMpegFileWriter
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-import mpl_toolkits.mplot3d.axes3d as p3
 from textwrap import wrap
 from data_loaders import humanml_utils
 
@@ -74,7 +73,7 @@ def explicit_plot_3d_motion(save_path, kinematic_tree, joints, title, dataset, f
         ax.set_zlim3d([-radius / 3.0, radius * 2 / 3.0])
         # print(title)
         fig.suptitle(title[0], fontsize=10)
-        ax.grid(b=False)
+        ax.grid(visible=False)
 
     def plot_xzPlane(minx, maxx, miny, minz, maxz):
         ## Plot a plane XZ
@@ -108,7 +107,7 @@ def explicit_plot_3d_motion(save_path, kinematic_tree, joints, title, dataset, f
 
     fig = plt.figure(figsize=figsize)
     plt.tight_layout()
-    ax = p3.Axes3D(fig)
+    ax = fig.add_subplot(111, projection='3d')
     init()
     MINS = data.min(axis=0).min(axis=0)
     MAXS = data.max(axis=0).max(axis=0)
@@ -147,10 +146,10 @@ def explicit_plot_3d_motion(save_path, kinematic_tree, joints, title, dataset, f
 
 
     def update(index):
-        ax.lines = []
-        ax.collections = []
+        for line in ax.lines[:]: line.remove()
+        for col in ax.collections[:]: col.remove()
         ax.view_init(elev=120, azim=-90)
-        ax.dist = 7.5
+        ax.set_box_aspect(None, zoom=10/7.5)
         if len(title) > 1:
             fig.suptitle(title[index], fontsize=10)
         plot_xzPlane(MINS[0] - trajec[index, 0], MAXS[0] - trajec[index, 0], 0, MINS[2] - trajec[index, 2], MAXS[2] - trajec[index, 2])
